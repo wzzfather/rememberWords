@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>雅思背词器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --glass-bg:rgba(255,255,255,0.12);
+  --glass-border:rgba(255,255,255,0.2);
+  --glass-shadow:0 8px 32px rgba(0,0,0,0.25);
+  --accent:#7c6ff7;
+  --accent-light:#a89cf8;
+  --green:#4ade80;
+  --red:#f87171;
+  --text:#f0f0f5;
+  --text-dim:rgba(240,240,245,0.6);
+}
+body{
+  min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;
+  background:linear-gradient(135deg,#0f0c29 0%,#1a1040 30%,#302b63 60%,#24243e 100%);
+  color:var(--text);
+  display:flex;flex-direction:column;align-items:center;
+  padding:20px 16px 40px;
+  overflow-x:hidden;
+}
+header{
+  width:100%;max-width:480px;
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:12px;flex-wrap:wrap;gap:8px;
+}
+header h1{font-size:1.3rem;font-weight:700;letter-spacing:1px;}
+.stats-bar{
+  display:flex;gap:14px;font-size:.82rem;color:var(--text-dim);
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:12px;padding:6px 16px;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+}
+.stats-bar span{display:flex;align-items:center;gap:4px;}
+.stats-bar .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+.dot.todo{background:#facc15}.dot.done{background:var(--green)}.dot.review{background:#fb923c}
+
+.card{
+  width:100%;max-width:480px;
+  background:var(--glass-bg);
+  border:1px solid var(--glass-border);
+  border-radius:24px;
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  box-shadow:var(--glass-shadow);
+  padding:48px 28px 36px;
+  text-align:center;
+  position:relative;
+  transition:transform .3s;
+}
+.card:hover{transform:translateY(-2px)}
+.word{font-size:2.4rem;font-weight:800;letter-spacing:1px;margin-bottom:8px;min-height:3.2rem}
+.phonetic{font-size:.9rem;color:var(--text-dim);margin-bottom:24px;min-height:1.2rem}
+.meaning-wrapper{
+  min-height:80px;display:flex;align-items:center;justify-content:center;
+  margin-bottom:28px;
+}
+.meaning{
+  font-size:1.2rem;line-height:1.7;color:var(--accent-light);
+  opacity:0;transform:translateY(10px);
+  transition:opacity .4s,transform .4s;
+}
+.meaning.show{opacity:1;transform:translateY(0)}
+.btn-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{
+  padding:12px 28px;border:none;border-radius:14px;
+  font-size:.95rem;font-weight:600;cursor:pointer;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  transition:transform .15s,box-shadow .15s,opacity .15s;
+  color:#fff;
+}
+.btn:active{transform:scale(.96)}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.btn.show-btn{background:rgba(124,111,247,0.5);border:1px solid rgba(124,111,247,0.6)}
+.btn.know-btn{background:rgba(74,222,128,0.35);border:1px solid rgba(74,222,128,0.5)}
+.btn.dont-btn{background:rgba(248,113,113,0.35);border:1px solid rgba(248,113,113,0.5)}
+.btn:hover:not(:disabled){box-shadow:0 0 20px rgba(124,111,247,0.3)}
+
+.toolbar{
+  width:100%;max-width:480px;
+  display:flex;gap:10px;margin:20px 0 10px;flex-wrap:wrap;
+}
+.toolbar select,.toolbar button{
+  flex:1;min-width:0;padding:10px 14px;
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:12px;color:var(--text);font-size:.85rem;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  cursor:pointer;
+}
+.toolbar select option{background:#24243e;color:#f0f0f5}
+.toolbar button{font-weight:600;text-align:center}
+
+.progress-track{
+  width:100%;max-width:480px;height:6px;
+  background:rgba(255,255,255,0.08);border-radius:3px;
+  margin:8px 0 6px;overflow:hidden;
+}
+.progress-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--green));transition:width .4s}
+
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.6);
+  display:none;align-items:center;justify-content:center;
+  z-index:100;padding:20px;
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+}
+.modal-overlay.active{display:flex}
+.modal{
+  width:100%;max-width:440px;
+  background:rgba(36,36,62,0.92);
+  border:1px solid var(--glass-border);
+  border-radius:20px;padding:28px 24px;
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  box-shadow:var(--glass-shadow);
+}
+.modal h2{font-size:1.1rem;margin-bottom:14px;text-align:center}
+.modal textarea{
+  width:100%;height:200px;
+  background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);
+  border-radius:12px;padding:14px;color:var(--text);
+  font-size:.88rem;line-height:1.6;resize:vertical;
+  font-family:inherit;
+}
+.modal textarea::placeholder{color:var(--text-dim)}
+.modal .btn-row{margin-top:16px}
+.modal .btn{flex:1}
+
+.calendar-section{
+  width:100%;max-width:480px;margin-top:28px;
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:20px;padding:20px 22px;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  box-shadow:var(--glass-shadow);
+}
+.calendar-section h3{font-size:.95rem;margin-bottom:14px;text-align:center;font-weight:600}
+.cal-grid{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;
+}
+.cal-grid .label{font-size:.7rem;color:var(--text-dim);padding:4px 0}
+.cal-grid .day{
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  border-radius:10px;font-size:.78rem;color:var(--text-dim);
+  position:relative;
+}
+.cal-grid .day.checked{
+  background:linear-gradient(135deg,rgba(124,111,247,0.5),rgba(74,222,128,0.4));
+  color:#fff;font-weight:700;
+}
+.cal-grid .day.today{border:1.5px solid var(--accent-light)}
+.cal-grid .day.empty{visibility:hidden}
+
+.complete-msg{
+  font-size:1.1rem;padding:20px;text-align:center;
+}
+.complete-msg .emoji{font-size:2.4rem;margin-bottom:10px;display:block}
+
+@media(max-width:420px){
+  .word{font-size:1.8rem}
+  .card{padding:36px 18px 28px;border-radius:18px}
+  .btn{padding:10px 18px;font-size:.88rem}
+  header h1{font-size:1.1rem}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>雅思背词器</h1>
+  <div class="stats-bar">
+    <span><i class="dot todo"></i>待复习 <b id="sReview">0</b></span>
+    <span><i class="dot done"></i>已掌握 <b id="sDone">0</b></span>
+  </div>
+</header>
+
+<div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+
+<div class="toolbar">
+  <select id="bankSelect" onchange="switchBank(this.value)"></select>
+  <button onclick="openImportModal()">导入词库</button>
+</div>
+
+<div class="card" id="cardArea">
+  <div class="word" id="wordEl"></div>
+  <div class="phonetic" id="phoneticEl"></div>
+  <div class="meaning-wrapper">
+    <div class="meaning" id="meaningEl"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn show-btn" id="showBtn" onclick="revealMeaning()">显示答案</button>
+    <button class="btn know-btn" id="knowBtn" onclick="markKnown()" disabled>认识</button>
+    <button class="btn dont-btn" id="dontBtn" onclick="markUnknown()" disabled>不认识</button>
+  </div>
+</div>
+
+<div class="calendar-section">
+  <h3 id="calTitle"></h3>
+  <div class="cal-grid" id="calGrid"></div>
+</div>
+
+<div class="modal-overlay" id="importModal">
+  <div class="modal">
+    <h2>导入自定义词库</h2>
+    <textarea id="importText" placeholder="每行一个单词，格式：&#10;word - 释义&#10;&#10;例如：&#10;ubiquitous - 无处不在的&#10;ephemeral - 短暂的"></textarea>
+    <div class="btn-row">
+      <button class="btn show-btn" onclick="closeImportModal()">取消</button>
+      <button class="btn know-btn" onclick="doImport()">导入</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BANKS = {
+  toefl: { name: '托福高频', words: [
+    {w:"ubiquitous",p:"/juːˈbɪkwɪtəs/",m:"无处不在的"},
+    {w:"ephemeral",p:"/ɪˈfemərəl/",m:"短暂的；转瞬即逝的"},
+    {w:"pragmatic",p:"/præɡˈmætɪk/",m:"务实的；实用主义的"},
+    {w:"eloquent",p:"/ˈeləkwənt/",m:"雄辩的；有说服力的"},
+    {w:"resilient",p:"/rɪˈzɪliənt/",m:"有弹性的；能迅速恢复的"},
+    {w:"meticulous",p:"/məˈtɪkjʊləs/",m:"一丝不苟的；细致的"},
+    {w:"ambiguous",p:"/æmˈbɪɡjuəs/",m:"模棱两可的；含糊的"},
+    {w:"tenacious",p:"/tɪˈneɪʃəs/",m:"坚韧不拔的；顽强的"},
+    {w:"profound",p:"/prəˈfaʊnd/",m:"深刻的；意义深远的"},
+    {w:"deteriorate",p:"/dɪˈtɪriəreɪt/",m:"恶化；变坏"},
+    {w:"exaggerate",p:"/ɪɡˈzædʒəreɪt/",m:"夸张；夸大"},
+    {w:"controversial",p:"/ˌkɒntrəˈvɜːʃəl/",m:"有争议的"},
+    {w:"comprehensive",p:"/ˌkɒmprɪˈhensɪv/",m:"全面的；综合的"},
+    {w:"indispensable",p:"/ˌɪndɪˈspensəbl/",m:"不可缺少的"},
+    {w:"perseverance",p:"/ˌpɜːsɪˈvɪərəns/",m:"毅力；坚持不懈"},
+  ]},
+  gre: { name: 'GRE 核心', words: [
+    {w:"sycophant",p:"/ˈsɪkəfænt/",m:"谄媚者；马屁精"},
+    {w:"laconic",p:"/ləˈkɒnɪk/",m:"简洁的；言简意赅的"},
+    {w:"perfidious",p:"/pəˈfɪdiəs/",m:"背信弃义的；不忠的"},
+    {w:"obfuscate",p:"/ˈɒbfʌskeɪt/",m:"使困惑；故意混淆"},
+    {w:"recalcitrant",p:"/rɪˈkælsɪtrənt/",m:"顽抗的；不服从的"},
+    {w:"ephemeron",p:"/ɪˈfemərɒn/",m:"短命之物"},
+    {w:"grandiloquent",p:"/ɡrænˈdɪləkwənt/",m:"浮夸的；华而不实的"},
+    {w:"pusillanimous",p:"/ˌpjuːsɪˈlænɪməs/",m:"胆小的；怯懦的"},
+    {w:"perspicacious",p:"/ˌpɜːspɪˈkeɪʃəs/",m:"目光敏锐的；有洞察力的"},
+    {w:"verisimilitude",p:"/ˌverɪsɪˈmɪlɪtjuːd/",m:"逼真；似真性"},
+    {w:"quixotic",p:"/kwɪkˈsɒtɪk/",m:"不切实际的；空想的"},
+    {w:"vituperative",p:"/vɪˈtjuːpərətɪv/",m:"辱骂的；责骂的"},
+  ]},
+  custom: { name: '自定义', words: [] }
+};
+
+const INTERVALS = [0.5 * 3600 * 1000, 6 * 3600 * 1000, Infinity];
+
+let state = { bank: 'toefl', items: {}, checkIn: [] };
+
+function uid(w) { return w.w + '::' + w.m; }
+
+function now() { return Date.now(); }
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem('vocab_state'));
+    if (s && s.bank) state = s;
+  } catch(e) {}
+  if (!state.items) state.items = {};
+  if (!state.checkIn) state.checkIn = [];
+}
+
+function save() {
+  localStorage.setItem('vocab_state', JSON.stringify(state));
+}
+
+function ensureItems() {
+  const bank = BANKS[state.bank];
+  if (!bank) return;
+  bank.words.forEach(w => {
+    const id = uid(w);
+    if (!state.items[id]) {
+      state.items[id] = { word: w, correct: 0, next: 0 };
+    }
+  });
+}
+
+function getQueue() {
+  const t = now();
+  return Object.values(state.items).filter(it =>
+    it.correct < 3 && it.next <= t
+  ).sort((a, b) => a.next - b.next);
+}
+
+function getDone() {
+  return Object.values(state.items).filter(it => it.correct >= 3).length;
+}
+
+function getTotal() {
+  return Object.keys(state.items).length;
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function checkIn() {
+  const t = todayStr();
+  if (!state.checkIn.includes(t)) state.checkIn.push(t);
+  save();
+}
+
+let currentItem = null;
+let revealed = false;
+
+function render() {
+  const queue = getQueue();
+  const done = getDone();
+  const total = getTotal();
+
+  document.getElementById('sReview').textContent = queue.length;
+  document.getElementById('sDone').textContent = done;
+
+  const pct = total > 0 ? ((total - queue.length) / total * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  if (queue.length === 0) {
+    document.getElementById('cardArea').innerHTML =
+      '<div class="complete-msg"><span class="emoji">&#127881;</span>全部完成！<br>待复习词将在到达时间后自动出现</div>';
+    return;
+  }
+
+  currentItem = queue[0];
+  revealed = false;
+
+  document.getElementById('wordEl').textContent = currentItem.word.w;
+  document.getElementById('phoneticEl').textContent = currentItem.word.p || '';
+  const meaningEl = document.getElementById('meaningEl');
+  meaningEl.textContent = currentItem.word.m;
+  meaningEl.classList.remove('show');
+  document.getElementById('showBtn').disabled = false;
+  document.getElementById('knowBtn').disabled = true;
+  document.getElementById('dontBtn').disabled = true;
+}
+
+function revealMeaning() {
+  if (revealed) return;
+  revealed = true;
+  document.getElementById('meaningEl').classList.add('show');
+  document.getElementById('showBtn').disabled = true;
+  document.getElementById('knowBtn').disabled = false;
+  document.getElementById('dontBtn').disabled = false;
+}
+
+function markKnown() {
+  if (!currentItem) return;
+  const id = uid(currentItem.word);
+  const it = state.items[id];
+  it.correct = Math.min(it.correct + 1, 3);
+  if (it.correct < 3) {
+    it.next = now() + INTERVALS[it.correct - 1];
+  } else {
+    it.next = Infinity;
+  }
+  checkIn();
+  save();
+  render();
+}
+
+function markUnknown() {
+  if (!currentItem) return;
+  const id = uid(currentItem.word);
+  const it = state.items[id];
+  it.correct = 0;
+  it.next = 0;
+  checkIn();
+  save();
+  render();
+}
+
+function switchBank(key) {
+  state.bank = key;
+  state.items = {};
+  ensureItems();
+  save();
+  document.getElementById('cardArea').innerHTML = `
+    <div class="word" id="wordEl"></div>
+    <div class="phonetic" id="phoneticEl"></div>
+    <div class="meaning-wrapper"><div class="meaning" id="meaningEl"></div></div>
+    <div class="btn-row">
+      <button class="btn show-btn" id="showBtn" onclick="revealMeaning()">显示答案</button>
+      <button class="btn know-btn" id="knowBtn" onclick="markKnown()" disabled>认识</button>
+      <button class="btn dont-btn" id="dontBtn" onclick="markUnknown()" disabled>不认识</button>
+    </div>`;
+  render();
+}
+
+function openImportModal() {
+  document.getElementById('importModal').classList.add('active');
+  document.getElementById('importText').value = '';
+}
+function closeImportModal() {
+  document.getElementById('importModal').classList.remove('active');
+}
+function doImport() {
+  const raw = document.getElementById('importText').value.trim();
+  if (!raw) return;
+  const words = raw.split('\n').map(line => {
+    const parts = line.split(/\s*[-–—]\s*/);
+    if (parts.length >= 2) {
+      return { w: parts[0].trim(), p: '', m: parts.slice(1).join(' - ').trim() };
+    }
+    return null;
+  }).filter(Boolean);
+  if (words.length === 0) return;
+  BANKS.custom.words = words;
+  state.bank = 'custom';
+  state.items = {};
+  document.getElementById('bankSelect').value = 'custom';
+  ensureItems();
+  save();
+  closeImportModal();
+  switchBank('custom');
+}
+
+function buildBankSelect() {
+  const sel = document.getElementById('bankSelect');
+  sel.innerHTML = '';
+  for (const [k, v] of Object.entries(BANKS)) {
+    const opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = v.name;
+    if (k === state.bank) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+function renderCalendar() {
+  const grid = document.getElementById('calGrid');
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const today = d.getDate();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+
+  document.getElementById('calTitle').textContent = year + '年' + (month + 1) + '月 学习日历';
+
+  const labels = ['日','一','二','三','四','五','六'];
+  let html = labels.map(l => '<div class="label">' + l + '</div>').join('');
+
+  for (let i = 0; i < firstDay; i++) html += '<div class="day empty"></div>';
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const ds = year + '-' + String(month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+    const checked = state.checkIn.includes(ds);
+    const isToday = day === today;
+    let cls = 'day';
+    if (checked) cls += ' checked';
+    if (isToday) cls += ' today';
+    html += '<div class="' + cls + '">' + day + '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+function init() {
+  load();
+  ensureItems();
+  buildBankSelect();
+  render();
+  renderCalendar();
+}
+
+init();
+</script>
+</body>
+</html>
